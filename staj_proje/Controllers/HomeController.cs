@@ -1,8 +1,16 @@
-using Microsoft.AspNetCore.Mvc;
+ï»¿using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Office2010.PowerPoint;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Http;
-using staj_proje.Models;
+using Microsoft.AspNetCore.Mvc;
 using staj_proje.Helpers;
+using staj_proje.Models;
+using System.IO;
 using System.Linq;
+using System.Xml.Linq;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+using System.Text;
 
 namespace staj_proje.Controllers
 {
@@ -26,7 +34,7 @@ namespace staj_proje.Controllers
             return View();
         }
 
-        // Profil görüntüleme
+        // Profil gÃ¶rÃ¼ntÃ¼leme
         [HttpGet]
         public IActionResult Profile()
         {
@@ -42,7 +50,7 @@ namespace staj_proje.Controllers
             return View(user);
         }
 
-        // Profil güncelleme
+        // Profil gÃ¼ncelleme
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult Profile(string yeniKullaniciAdi, string eskiSifre, string yeniSifre)
@@ -60,57 +68,58 @@ namespace staj_proje.Controllers
                 string.IsNullOrWhiteSpace(eskiSifre) ||
                 string.IsNullOrWhiteSpace(yeniSifre))
             {
-                ViewBag.Hata = "Tüm alanlarý doldurunuz.";
+                ViewBag.Hata = "TÃ¼m alanlarÄ± doldurunuz.";
                 return View(user);
             }
 
-            // Eski þifre doðru mu kontrol et
+            // Eski ÅŸifre doÄŸru mu kontrol et
             var hashedEskiSifre = SecurityHelper.Sha256Hash(eskiSifre);
             if (user.Password != hashedEskiSifre)
             {
-                ViewBag.Hata = "Mevcut þifreniz yanlýþ.";
+                ViewBag.Hata = "Mevcut ÅŸifreniz yanlÄ±ÅŸ.";
                 return View(user);
             }
 
-            // Yeni kullanýcý adý zaten var mý kontrol et
+            // Yeni kullanÄ±cÄ± adÄ± zaten var mÄ± kontrol et
             if (_context.Users.Any(u => u.Username == yeniKullaniciAdi && u.Id != user.Id))
             {
-                ViewBag.Hata = "Bu kullanýcý adý baþka biri tarafýndan kullanýlýyor.";
+                ViewBag.Hata = "Bu kullanÄ±cÄ± adÄ± baÅŸka biri tarafÄ±ndan kullanÄ±lÄ±yor.";
                 return View(user);
             }
 
             try
             {
-                // Güncelleme iþlemi
+                // GÃ¼ncelleme iÅŸlemi
                 user.Username = yeniKullaniciAdi;
                 user.Password = SecurityHelper.Sha256Hash(yeniSifre);
                 _context.SaveChanges();
 
-                // Session'ý güncelle
+                // Session'Ä± gÃ¼ncelle
                 HttpContext.Session.SetString("Username", yeniKullaniciAdi);
 
-                TempData["Basarili"] = "Profil baþarýyla güncellendi.";
+                TempData["Basarili"] = "Profil baÅŸarÄ±yla gÃ¼ncellendi.";
                 return RedirectToAction("Profile");
             }
             catch (Exception ex)
             {
-                ViewBag.Hata = "Profil güncellenirken bir hata oluþtu.";
+                ViewBag.Hata = "Profil gÃ¼ncellenirken bir hata oluÅŸtu.";
                 return View(user);
             }
         }
 
-        // Tüm kullanýcýlarý listele
+        // TÃ¼m kullanÄ±cÄ±larÄ± listele
         public IActionResult AllUsers()
         {
             if (HttpContext.Session.GetString("Username") == null)
                 return RedirectToAction("Login", "Account");
 
-            var users = _context.Users.OrderBy(u => u.Username).ToList();
+            // ID'ye gÃ¶re sÄ±ralama
+            var users = _context.Users.OrderBy(u => u.Id).ToList();
             ViewBag.ShowMenu = true;
             return View(users ?? new List<User>());
         }
 
-        // Kullanýcý silme
+        // KullanÄ±cÄ± silme
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult DeleteUser(int id)
@@ -127,22 +136,22 @@ namespace staj_proje.Controllers
                 {
                     _context.Users.Remove(user);
                     _context.SaveChanges();
-                    TempData["Basarili"] = "Kullanýcý baþarýyla silindi.";
+                    TempData["Basarili"] = "KullanÄ±cÄ± baÅŸarÄ±yla silindi.";
                 }
                 catch (Exception ex)
                 {
-                    TempData["Hata"] = "Kullanýcý silinirken bir hata oluþtu.";
+                    TempData["Hata"] = "KullanÄ±cÄ± silinirken bir hata oluÅŸtu.";
                 }
             }
             else if (user?.Username == currentUsername)
             {
-                TempData["Hata"] = "Kendi hesabýnýzý silemezsiniz.";
+                TempData["Hata"] = "Kendi hesabÄ±nÄ±zÄ± silemezsiniz.";
             }
 
             return RedirectToAction("AllUsers");
         }
 
-        // Kullanýcý düzenleme sayfasý
+        // KullanÄ±cÄ± dÃ¼zenleme sayfasÄ±
         [HttpGet]
         public IActionResult EditUser(int id)
         {
@@ -157,7 +166,7 @@ namespace staj_proje.Controllers
             return View(user);
         }
 
-        // Kullanýcý düzenleme iþlemi
+        // KullanÄ±cÄ± dÃ¼zenleme iÅŸlemi
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult EditUser(int id, string kullaniciAdi, string sifre)
@@ -173,14 +182,14 @@ namespace staj_proje.Controllers
 
             if (string.IsNullOrWhiteSpace(kullaniciAdi) || string.IsNullOrWhiteSpace(sifre))
             {
-                ViewBag.Hata = "Boþ alan býrakmayýnýz.";
+                ViewBag.Hata = "BoÅŸ alan bÄ±rakmayÄ±nÄ±z.";
                 return View(user);
             }
 
-            // Ayný kullanýcý adý var mý kontrol
+            // AynÄ± kullanÄ±cÄ± adÄ± var mÄ± kontrol
             if (_context.Users.Any(u => u.Username == kullaniciAdi && u.Id != user.Id))
             {
-                ViewBag.Hata = "Bu kullanýcý adý baþka biri tarafýndan kullanýlýyor.";
+                ViewBag.Hata = "Bu kullanÄ±cÄ± adÄ± baÅŸka biri tarafÄ±ndan kullanÄ±lÄ±yor.";
                 return View(user);
             }
 
@@ -190,21 +199,193 @@ namespace staj_proje.Controllers
                 user.Password = SecurityHelper.Sha256Hash(sifre);
                 _context.SaveChanges();
 
-                TempData["Basarili"] = "Kullanýcý baþarýyla güncellendi.";
+                TempData["Basarili"] = "KullanÄ±cÄ± baÅŸarÄ±yla gÃ¼ncellendi.";
                 return RedirectToAction("AllUsers");
             }
             catch (Exception ex)
             {
-                ViewBag.Hata = "Kullanýcý güncellenirken bir hata oluþtu.";
+                ViewBag.Hata = "KullanÄ±cÄ± gÃ¼ncellenirken bir hata oluÅŸtu.";
                 return View(user);
             }
         }
 
-        // Çýkýþ yapma
+        // Ã‡Ä±kÄ±ÅŸ yapma
         public IActionResult Logout()
         {
             HttpContext.Session.Clear();
             return RedirectToAction("Login", "Account");
         }
+
+        // Excel Export
+        public IActionResult ExportToExcel()
+        {
+            if (HttpContext.Session.GetString("Username") == null)
+                return RedirectToAction("Login", "Account");
+
+            try
+            {
+                // ID'ye gÃ¶re sÄ±ralama yaparak tutarlÄ±lÄ±ÄŸÄ± saÄŸla
+                var users = _context.Users.OrderBy(u => u.Id).ToList();
+
+                using (var workbook = new XLWorkbook())
+                {
+                    var worksheet = workbook.Worksheets.Add("Kullanicilar");
+
+                    // BaÅŸlÄ±klar
+                    worksheet.Cell(1, 1).Value = "ID";
+                    worksheet.Cell(1, 2).Value = "KullanÄ±cÄ± AdÄ±";
+                    worksheet.Cell(1, 3).Value = "KayÄ±t Tarihi";
+
+                    // BaÅŸlÄ±k satÄ±rÄ±nÄ± kalÄ±n yap
+                    worksheet.Range("A1:C1").Style.Font.Bold = true;
+                    worksheet.Range("A1:C1").Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                    // Veriler
+                    for (int i = 0; i < users.Count; i++)
+                    {
+                        worksheet.Cell(i + 2, 1).Value = users[i].Id;
+                        worksheet.Cell(i + 2, 2).Value = users[i].Username;
+                        worksheet.Cell(i + 2, 3).Value = users[i].CreatedDate.ToString("dd.MM.yyyy HH:mm");
+                    }
+
+                    // Otomatik sÃ¼tun geniÅŸliÄŸi
+                    worksheet.Columns().AdjustToContents();
+
+                    // Tablo stilini uygula
+                    var tableRange = worksheet.Range($"A1:C{users.Count + 1}");
+                    tableRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    tableRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+                    using (var stream = new MemoryStream())
+                    {
+                        workbook.SaveAs(stream);
+                        var content = stream.ToArray();
+                        var fileName = $"Kullanicilar_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+                        return File(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Hata"] = "Excel dosyasÄ± oluÅŸturulurken hata: " + ex.Message;
+                return RedirectToAction("AllUsers");
+            }
+        }
+
+        // PDF Export
+        public IActionResult ExportToPdf()
+        {
+            if (HttpContext.Session.GetString("Username") == null)
+                return RedirectToAction("Login", "Account");
+
+            try
+            {
+                // ID'ye gÃ¶re sÄ±ralama yaparak tutarlÄ±lÄ±ÄŸÄ± saÄŸla
+                var users = _context.Users.OrderBy(u => u.Id).ToList();
+
+                using (var stream = new MemoryStream())
+                {
+                    // PDF dokÃ¼manÄ± oluÅŸtur
+                    var document = new iTextSharp.text.Document(iTextSharp.text.PageSize.A4, 25, 25, 30, 30);
+                    var writer = PdfWriter.GetInstance(document, stream);
+
+                    document.Open();
+
+                    // TÃ¼rkÃ§e karakter desteÄŸi iÃ§in font
+                    string fontPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf");
+                    BaseFont baseFont;
+
+                    try
+                    {
+                        baseFont = BaseFont.CreateFont(fontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                    }
+                    catch
+                    {
+                        // Arial bulunamazsa varsayÄ±lan font kullan
+                        baseFont = BaseFont.CreateFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
+                    }
+
+                    var titleFont = new iTextSharp.text.Font(baseFont, 18, iTextSharp.text.Font.BOLD);
+                    var headerFont = new iTextSharp.text.Font(baseFont, 12, iTextSharp.text.Font.BOLD);
+                    var normalFont = new iTextSharp.text.Font(baseFont, 10, iTextSharp.text.Font.NORMAL);
+
+                    // BaÅŸlÄ±k
+                    var title = new iTextSharp.text.Paragraph("KULLANICI LÄ°STESÄ°", titleFont);
+                    title.Alignment = Element.ALIGN_CENTER;
+                    title.SpacingAfter = 20f;
+                    document.Add(title);
+
+                    // OluÅŸturulma tarihi
+                    var dateInfo = new iTextSharp.text.Paragraph($"OluÅŸturulma Tarihi: {DateTime.Now:dd.MM.yyyy HH:mm}", normalFont);
+                    dateInfo.Alignment = Element.ALIGN_RIGHT;
+                    dateInfo.SpacingAfter = 20f;
+                    document.Add(dateInfo);
+
+                    // Tablo oluÅŸtur
+                    var table = new PdfPTable(3);
+                    table.WidthPercentage = 100;
+                    table.SetWidths(new float[] { 1f, 3f, 2f }); // SÃ¼tun geniÅŸlikleri
+
+                    // Tablo baÅŸlÄ±klarÄ±
+                    var idHeader = new PdfPCell(new Phrase("ID", headerFont));
+                    idHeader.BackgroundColor = BaseColor.LIGHT_GRAY;
+                    idHeader.HorizontalAlignment = Element.ALIGN_CENTER;
+                    idHeader.Padding = 8f;
+                    table.AddCell(idHeader);
+
+                    var usernameHeader = new PdfPCell(new Phrase("KullanÄ±cÄ± AdÄ±", headerFont));
+                    usernameHeader.BackgroundColor = BaseColor.LIGHT_GRAY;
+                    usernameHeader.HorizontalAlignment = Element.ALIGN_CENTER;
+                    usernameHeader.Padding = 8f;
+                    table.AddCell(usernameHeader);
+
+                    var dateHeader = new PdfPCell(new Phrase("KayÄ±t Tarihi", headerFont));
+                    dateHeader.BackgroundColor = BaseColor.LIGHT_GRAY;
+                    dateHeader.HorizontalAlignment = Element.ALIGN_CENTER;
+                    dateHeader.Padding = 8f;
+                    table.AddCell(dateHeader);
+
+                    // Veriler
+                    foreach (var user in users)
+                    {
+                        var idCell = new PdfPCell(new Phrase(user.Id.ToString(), normalFont));
+                        idCell.HorizontalAlignment = Element.ALIGN_CENTER;
+                        idCell.Padding = 5f;
+                        table.AddCell(idCell);
+
+                        var usernameCell = new PdfPCell(new Phrase(user.Username, normalFont));
+                        usernameCell.HorizontalAlignment = Element.ALIGN_LEFT;
+                        usernameCell.Padding = 5f;
+                        table.AddCell(usernameCell);
+
+                        var dateCell = new PdfPCell(new Phrase(user.CreatedDate.ToString("dd.MM.yyyy HH:mm"), normalFont));
+                        dateCell.HorizontalAlignment = Element.ALIGN_CENTER;
+                        dateCell.Padding = 5f;
+                        table.AddCell(dateCell);
+                    }
+
+                    document.Add(table);
+
+                    // Ã–zet bilgi
+                    var summary = new iTextSharp.text.Paragraph($"\nToplam KullanÄ±cÄ± SayÄ±sÄ±: {users.Count}", headerFont);
+                    summary.SpacingBefore = 20f;
+                    document.Add(summary);
+
+                    document.Close();
+
+                    var content = stream.ToArray();
+                    var fileName = $"Kullanicilar_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+
+                    return File(content, "application/pdf", fileName);
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Hata"] = "PDF dosyasÄ± oluÅŸturulurken hata: " + ex.Message;
+                return RedirectToAction("AllUsers");
+            }
+        }
+
     }
 }
