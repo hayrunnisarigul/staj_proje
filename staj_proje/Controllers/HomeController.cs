@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Office2010.PowerPoint;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Http;
@@ -17,20 +17,34 @@ namespace staj_proje.Controllers
     public class HomeController : Controller
     {
         private readonly AppDbContext _context;
+        private readonly IWeatherService _weatherService;
 
-        public HomeController(AppDbContext context)
+        public HomeController(AppDbContext context, IWeatherService weatherService)
         {
             _context = context;
+            _weatherService = weatherService;
         }
 
         // Ana sayfa
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             if (HttpContext.Session.GetString("Username") == null)
                 return RedirectToAction("Login", "Account");
 
             ViewBag.ShowMenu = true;
             ViewBag.Username = HttpContext.Session.GetString("Username");
+            
+            // Hava durumu verilerini al
+            try
+            {
+                var weatherData = await _weatherService.GetWeatherAsync("İstanbul");
+                ViewBag.WeatherData = weatherData;
+            }
+            catch (Exception ex)
+            {
+                ViewBag.WeatherError = "Hava durumu verisi alınamadı: " + ex.Message;
+            }
+            
             return View();
         }
 
@@ -116,6 +130,15 @@ namespace staj_proje.Controllers
             // ID'ye göre sıralama
             var users = _context.Users.OrderBy(u => u.Id).ToList();
             ViewBag.ShowMenu = true;
+            
+            // Mevcut kullanıcının ID'sini session'a ekle
+            var currentUsername = HttpContext.Session.GetString("Username");
+            var currentUser = _context.Users.FirstOrDefault(u => u.Username == currentUsername);
+            if (currentUser != null)
+            {
+                HttpContext.Session.SetInt32("UserId", currentUser.Id);
+            }
+            
             return View(users ?? new List<User>());
         }
 
