@@ -1,0 +1,31 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+
+# Rider/IDE
+.idea/
+
+# Temporary files
+*.log
+*.tmp
+
+# User secrets / environment
+*.env
+appsettings.*.json
+
+# NuGet packages
+*.nupkg
+project.lock.json
+packages/
+
+# Build outputs
+publish/
+dist/
