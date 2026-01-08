@@ -8,6 +8,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddControllersWithViews();
+
+// Weather Service'i ekle
+builder.Services.AddScoped<IWeatherService, WeatherService>();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(30); // Session timeout
@@ -17,7 +20,7 @@ builder.Services.AddSession(options =>
 
 var app = builder.Build();
 
-// Geliþtirme ortamý kontrolü
+// Geliï¿½tirme ortamï¿½ kontrolï¿½
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -29,7 +32,7 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
 
-// Sayfa geçmiþi engelleme (çýkýþ sonrasý geri tuþu çalýþmasýn)
+// Sayfa geï¿½miï¿½i engelleme (ï¿½ï¿½kï¿½ï¿½ sonrasï¿½ geri tuï¿½u ï¿½alï¿½ï¿½masï¿½n)
 app.Use(async (context, next) =>
 {
     context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";

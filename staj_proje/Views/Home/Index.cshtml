@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = "_Layout";
     ViewBag.Title = "Ana Sayfa";
 }
@@ -24,6 +24,66 @@
             </div>
         </div>
     </div>
+
+    <!-- Hava Durumu Kartı -->
+    @if (ViewBag.WeatherData != null)
+    {
+        var weather = ViewBag.WeatherData as staj_proje.Models.WeatherApiResponse;
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cloud-sun"></i> Hava Durumu - @weather.City
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="p-3">
+                                    <h2 class="text-primary mb-0">@weather.Temperature°C</h2>
+                                    <p class="mb-0 text-muted">Sıcaklık</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3">
+                                    <h4 class="text-info mb-0">@weather.Description</h4>
+                                    <p class="mb-0 text-muted">Durum</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3">
+                                    <h4 class="text-success mb-0">%@weather.Humidity</h4>
+                                    <p class="mb-0 text-muted">Nem</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="p-3">
+                                    <h4 class="text-warning mb-0">@weather.WindSpeed km/s</h4>
+                                    <p class="mb-0 text-muted">Rüzgar</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                Son güncelleme: @weather.Timestamp.ToString("dd.MM.yyyy HH:mm")
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (ViewBag.WeatherError != null)
+    {
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle"></i> @ViewBag.WeatherError
+                </div>
+            </div>
+        </div>
+    }
 
     <!-- Hızlı Erişim Kartları -->
     <div class="row">
